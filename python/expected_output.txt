@@ -1,0 +1,128 @@
+==========================================================================
+KUNCHENKO LIKELIHOOD-SERIES UNIFICATION
+  three branches  PMM(∂) · detection(Δ) · DSGE(residual)  + sequential form  GSA(Δ∘time)
+  seed 2026, MC=4,000,000, location shift δ=1.0
+==========================================================================
+
+[ANCHOR — Gaussian: basis spans the truth, the series terminates]
+  A1 estimation: g(order-1 {x})         = 0.999999   (score linear -> full Fisher)
+  A2 detection : c(order [1,x])           = 1.000000   |QDA-disc − true LLR|max = 0.00e+00
+     A1 PASS · A2 PASS
+
+[TRUNCATION — Laplace: basis approximates, residual R_m shrinks with order m]
+  T1/T2 estimation (fractional basis sgn(x)|x|^a):
+     basis α                       g_analytic  g_empirical(ARE)
+     [1.0]                             0.4997            0.4848
+     [0.5, 1.0]                        0.9216            0.9185
+     [0.5, 1.0, 1.5]                   0.9631            0.9474
+     [0.5, 1.0, 1.5, 2.5]              0.9763            0.9621
+     T1 (g rises with order) PASS   · T2 (|g_an−g_emp|=0.014<0.05) PASS
+
+  T3 detection (captured LLR fraction vs basis order):
+     c(order 2)  = 0.7068
+     c(order 3)  = 0.7073
+     c(order 4)  = 0.8570
+     c(order 6)  = 0.9398
+     T3 (c rises with order) PASS
+
+[A3 — GSA anchor: H0=N(0,1) vs H1=N(0,2.25), pure covariance shift]
+  c(order [1,x])    (S=1)   = 0.000001   (designed-blind: even signal ⊥ odd basis)
+  c(order [1,x,x²]) (S=2)   = 1.000000   (LLR quadratic -> projection exact)
+  |mahala-affine − LLR|max  = 2.66e-15  (Ghosh head ≡ LLR, Lean gauss_llr_eq_mahala_affine)
+  sign(GSA@S=2) = Bayes     : agreement 1.000000
+  F·K=Y (theor. moments)    : corr(K'φ, LLR) = 1.000000000
+     A3 PASS  (S=2 exact ∧ Ghosh≡LLR ∧ sign=Bayes ∧ S=1 blind ∧ F·K=Y collinear)
+
+[T4 — GSA reading: J(s)/‖z‖² (InfoFunctional) vs captured c(m), same sample]
+     family                  m      c(m)    J/‖z‖²        |Δ|
+     Gaussian cov-shift      2  0.000001  0.000001   6.23e-17
+     Gaussian cov-shift      3  1.000000  1.000000   6.44e-15
+     Gaussian cov-shift      4  1.000000  1.000000   2.89e-15
+     Gaussian cov-shift      6  1.000000  1.000000   1.07e-14
+     Laplace shift           2  0.707335  0.707335   2.74e-14
+     Laplace shift           3  0.707337  0.707337   2.79e-14
+     Laplace shift           4  0.857140  0.857140   2.50e-14
+     Laplace shift           6  0.940816  0.940816   2.92e-14
+     T4 (max|c−J|=2.92e-14<1e-6 ∧ Gaussian J saturates at m=3: 1.000000) PASS
+
+[D1 — decomposition: R²=κ_m(log p), captured fraction of the log-density itself]
+  Gaussian R²(m=2 [1,x]) = 0.000000   R²(m=3 [1,x,x²]) = 1.000000  (terminates at x²)
+  Laplace  R²(m=2)            = 0.0000
+  Laplace  R²(m=3)            = 0.8005
+  Laplace  R²(m=4)            = 1.0000
+  Laplace  R²(m=6)            = 1.0000
+     D1 PASS  (Gaussian terminates at x²; Laplace R² rises with the fractional basis)
+
+[H1 — heavy tail: fractional g rises where the polynomial/Hermite basis is not L²]
+  Student-t(3)  fractional [0.5]                  g = 0.8832
+  Student-t(3)  fractional [0.5, 1.0]             g = 0.9580
+  Student-t(3)  fractional [0.5, 1.0, 1.25]       g = 0.9630
+     monomial {x,x³} needs E[x⁴]: empirical = 5151.8 (df=3 -> diverges in population) -> not L²
+  Cauchy        fractional [0.25]                 g = 0.6040
+  Cauchy        fractional [0.25, 0.4]            g = 0.7516
+     H1 PASS  (fractional g rises on t₃; Cauchy captured; monomial E[x⁴] diverges)
+
+[L1 — local identity: c(δ) → g as δ → 0 (Λ_δ = δ·S + o(δ)), Laplace]
+  g = κ₁(S;p₀) onto {x}      = 0.4995
+  c(δ=0.5  ) = κ₂(Λ_δ;p₀)  = 0.5876   |c−g| = 0.0882
+  c(δ=0.2  ) = κ₂(Λ_δ;p₀)  = 0.5414   |c−g| = 0.0419
+  c(δ=0.1  ) = κ₂(Λ_δ;p₀)  = 0.5217   |c−g| = 0.0222
+  c(δ=0.05 ) = κ₂(Λ_δ;p₀)  = 0.5109   |c−g| = 0.0114
+  c(δ=0.02 ) = κ₂(Λ_δ;p₀)  = 0.5041   |c−g| = 0.0047
+     L1 PASS  (c(δ) decreases to g as δ→0)
+
+[U — one reading] Gaussian: all branches complete (g=c=1; GSA J saturates).
+   Laplace: estimation g 0.500→0.976 and detection c 0.707→0.940 both rise with truncation order -> same series.
+   GSA: J(s)/‖z‖² ≡ c(m) on the same sample -> the change-point branch spends
+   the same reading; CUSUM on GSA@S=2 increments = CUSUM on the true LLR (A3).
+
+[U1 — uncertainty: headline readings as mean ± SE over R independent seeds]
+  Laplace  g(order-4 frac) = 0.9766 ± 0.0001   95% CI [0.9763, 0.9768]
+  Laplace  c(order 6)      = 0.9405 ± 0.0010   95% CI [0.9384, 0.9425]
+  Laplace  R^2(order 6)    = 1.0000 ± 0.0000   95% CI [1.0000, 1.0000]
+     (R=30 independent seeds, n=200,000 each)
+     U1 PASS  (finite MC standard error; 95% CIs reported)
+
+[P1 — power: order-m projected-score test, level calibrated to 0.05 under H0]
+     family          m       g   level   power  power(thy)
+     Laplace         1   0.500   0.050   0.594       0.561
+     Laplace         2   0.921   0.050   0.770       0.788
+     Laplace         3   0.963   0.050   0.794       0.803
+     Laplace         4   0.977   0.050   0.800       0.808
+     Student-t(3)    1   0.883   0.050   0.793       0.791
+     Student-t(3)    2   0.962   0.050   0.823       0.820
+     Student-t(3)    3   0.963   0.050   0.843       0.821
+     P1 PASS  (power rises with order, ~tracks Φ(√(gI)h−z), level≈0.05)
+
+[P2 — estimation: PMM one-step RMSE & empirical efficiency vs order (true θ=0)]
+     family          m  g(analytic)      RMSE  eff(emp)
+     Laplace         1        0.501    0.0454     0.486
+     Laplace         2        0.922    0.0334     0.894
+     Laplace         3        0.963    0.0334     0.895
+     Laplace         4        0.976    0.0323     0.956
+     P2 PASS  (efficiency rises with order and tracks g; RMSE falls)
+
+[S1 — selection: held-out κ for the order m; Hill tail index → exponent ceiling]
+  held-out κ(LLR) by order (Laplace):  m2:0.706  m3:0.706  m4:0.856  m5:0.885  m6:0.939
+     selected order m* = 6  (max held-out captured fraction)
+  Student-t(3): Hill α̂ = 2.46 → ceiling a_max = α̂/2 = 1.23
+     grid [0.37, 0.62, 0.86, 1.11] admissible (2·max a = 2.22 < α̂); g = 0.992
+     S1 PASS  (CV picks a sensible order; data-driven ceiling admissible)
+
+[C1 — completeness: κ_m(generic z=x·e^{−x²/2}) as the fractional basis densifies]
+  Laplace (light tail):          1exp:0.809  2exp:0.909  4exp:0.982  8exp:0.999
+  Student-t(3) (heavy, exps<1.5): 1exp:0.736  2exp:0.795  4exp:0.885  8exp:0.980
+     C1 PASS  (κ→1 as exponents densify, both light & heavy tails)
+
+==========================================================================
+UNIFICATION VERIFICATION : PASS  (15 checks)
+  A1 ✓  A2 ✓  T1 ✓  T2 ✓  T3 ✓  A3 ✓  T4 ✓  D1 ✓  H1 ✓  L1 ✓
+  U1 ✓  P1 ✓  P2 ✓  S1 ✓  C1 ✓
+  ONE functional κ_m (captured fraction) read on FOUR objects: score S (PMM g),
+  LLR Λ (detection c; sequential GSA reads J(s)/‖z‖²), and log-density (DSGE R²).
+  These are NOT one number: each is κ_m on a different (object, measure, basis).
+  They reach 1 SIMULTANEOUSLY only on the terminating anchor (Gaussian; GSA@S=2 =
+  Ghosh = Bayes); off it all are <1 and rise with truncation order (Laplace, t₃,
+  Cauchy — where the fractional element stays L² and the Hermite/monomial basis
+  does not). The genuine cross-branch EQUALITY is the local limit c(δ)→g (L1).
+==========================================================================

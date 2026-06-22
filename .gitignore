@@ -1,0 +1,9 @@
+# Python
+__pycache__/
+*.pyc
+# Lean / Lake build products
+/lean/.lake/
+/lean/lake-packages/
+*.olean
+# OS
+.DS_Store
