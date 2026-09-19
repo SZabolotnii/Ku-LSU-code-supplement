@@ -7,13 +7,21 @@ Captured-Fraction Functional* (S. V. Zabolotnii, 2026).
 > **Open repository:** <https://github.com/SZabolotnii/Ku-LSU-code-supplement> — this directory is
 > the canonical source for that public code supplement.
 
-All data are **synthetic** Monte-Carlo samples generated in code (global seed `2026`); there is
-no external dataset. Two independent artifacts:
+The controlled studies use **synthetic** Monte-Carlo samples generated in code (global seed
+`2026`). The real-data study of §8 uses four public-domain daily exchange-rate series from FRED,
+Federal Reserve Bank of St. Louis — `DEXJPUS`, `DEXUSUK`, `DEXCAUS`, `DEXUSEU` — which ship in
+`data/`, so no download and no account are needed. Artifacts:
 
 | Part | What it certifies | How |
 |---|---|---|
-| `python/` | The fifteen numerical checks — A1–A2, T1–T4, A3, D1, H1, L1 (unification) plus U1, P1, P2, S1, C1 (uncertainty, power/ROC, RMSE, data-driven selection, completeness) behind §5–§6 | `numpy` Monte-Carlo, seed 2026 |
+| `python/run_three_branch_unification.py` | §5–§6: the fifteen checks — A1–A2, T1–T4, A3, D1, H1, L1 (unification) plus U1, P1, P2, S1, C1 (uncertainty, power/ROC, RMSE, data-driven selection, completeness) | `numpy` Monte-Carlo, seed 2026 |
+| `python/run_comparators.py` | §7: the three branches beside polynomial, Hermite, robust and nonparametric alternatives, paired, with `cond(F)` on every basis solve | `numpy`/`scipy`, seed 2026 |
+| `python/run_realdata.py` | §8: the pre-registered study on the four FRED series, split 60/40 by date with every reported number held out | `numpy`/`scipy`, seed 2026, reads `data/` |
 | `lean/`   | The Gaussian-anchor detection identities (Thm. *Detection bridge* + the GSA corollary) | Lean 4 / Mathlib v4.26.0, 0 `sorry` |
+
+The pre-registration of the real-data study, written before any analysis code existed, is
+`REAL_DATA_SPEC.md`; its two amendments and its one post-hoc diagnostic are recorded inside it, and
+the paper's supplement reproduces it in full.
 
 ## Quick start
 
@@ -23,14 +31,21 @@ no external dataset. Two independent artifacts:
 python3 -m pip install -r requirements.txt
 python3 python/run_three_branch_unification.py        # prints "UNIFICATION VERIFICATION : PASS (15 checks)"
 
-# 2. Figures (recomputed from the gate; nothing hardcoded)
+# 2. Comparators (§7) and the pre-registered real-data study (§8)
+python3 python/run_comparators.py                      # ~10 min
+python3 python/run_realdata.py                         # ~30 s, reads data/
+
+# 3. Figures (recomputed from the gate; nothing hardcoded)
 python3 python/make_figures.py                         # writes figs/*.{png,pdf}
 
-# 3. Machine-checked Lean core (standalone; needs the Lean toolchain via elan)
+# 4. Machine-checked Lean core (standalone; needs the Lean toolchain via elan)
 cd lean && lake exe cache get && lake build            # "Build completed successfully", 0 sorry
 ```
 
-A `Makefile` wraps these: `make gate`, `make figures`, `make lean`, `make all`.
+A `Makefile` wraps these: `make gate`, `make comparators`, `make realdata`, `make figures`,
+`make lean`, `make all`. Each of the three scripts reproduces its recorded output byte-for-byte:
+`python/expected_output.txt`, `python/expected_output_comparators.txt` and
+`python/expected_output_realdata.txt`.
 
 ## What to expect
 

@@ -26,6 +26,11 @@ import numpy as np
 
 import matplotlib
 matplotlib.use("Agg")  # headless / no display
+# Embed real Type 1/TrueType outlines rather than the Type 3 bitmap fonts matplotlib
+# writes by default: Springer's figure guidance requires embedded fonts and many
+# portals reject Type 3 outright.
+matplotlib.rcParams["pdf.fonttype"] = 42
+matplotlib.rcParams["ps.fonttype"] = 42
 import matplotlib.pyplot as plt
 from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
 
