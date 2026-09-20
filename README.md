@@ -20,8 +20,10 @@ Federal Reserve Bank of St. Louis — `DEXJPUS`, `DEXUSUK`, `DEXCAUS`, `DEXUSEU`
 | `lean/`   | The Gaussian-anchor detection identities (Thm. *Detection bridge* + the GSA corollary) | Lean 4 / Mathlib v4.26.0, 0 `sorry` |
 
 The pre-registration of the real-data study, written before any analysis code existed, is
-`REAL_DATA_SPEC.md`; its two amendments and its one post-hoc diagnostic are recorded inside it, and
-the paper's supplement reproduces it in full.
+`REAL_DATA_SPEC.md`; its two amendments, its one post-hoc diagnostic and the correction to the first
+analysis of criterion C-2 are recorded inside it. The paper cites this repository as the record of
+that document and of the program output (`python/expected_output*.txt`), which each script
+reproduces byte-for-byte.
 
 ## Quick start
 
