@@ -25,6 +25,10 @@ analysis of criterion C-2 are recorded inside it. The paper cites this repositor
 that document and of the program output (`python/expected_output*.txt`), which each script
 reproduces byte-for-byte.
 
+This state is archived as release v1.1.0: [doi:10.5281/zenodo.22860597](https://doi.org/10.5281/zenodo.22860597).
+The concept DOI [10.5281/zenodo.22860596](https://doi.org/10.5281/zenodo.22860596) always resolves to the
+latest version.
+
 ## Quick start
 
 ```bash
