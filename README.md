@@ -28,14 +28,16 @@ are recorded inside it. The paper cites this repository as the record of that do
 program output (`python/expected_output*.txt`), which each script reproduces up to
 platform-dependent floating-point rounding.
 
-Release v1.2.0 (2026-09-22) is the state the revised manuscript reports: it adds the corrected
+Release v1.2.0 (2026-09-22), archived as
+[doi:10.5281/zenodo.22900394](https://doi.org/10.5281/zenodo.22900394), is the state the revised
+manuscript reports: it adds the corrected
 real-data protocol (immutable per-series splits, dependence-aware uncertainty,
 population-efficiency reporting), Study 2 with its data file and pre-registration, Correction 6,
 the reference-efficiency script and the regression tests. The earlier state is archived as
 release v1.1.0: [doi:10.5281/zenodo.22860597](https://doi.org/10.5281/zenodo.22860597); it
 predates all of these. The concept DOI
 [10.5281/zenodo.22860596](https://doi.org/10.5281/zenodo.22860596) always resolves to the latest
-version; the version DOI of v1.2.0 is recorded in `CITATION.cff` once Zenodo has minted it.
+version.
 
 ## Quick start
 
