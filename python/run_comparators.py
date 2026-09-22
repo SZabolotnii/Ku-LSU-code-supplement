@@ -5,8 +5,8 @@ The frozen gate (run_three_branch_unification.py) verifies the THEORY: that the 
 fraction rises with the basis, terminates on sufficiency, and stays defined on heavy tails.
 Both referees asked the complementary question: what does a practitioner GAIN relative to
 the methods they would otherwise use?  This script answers it, on the three branches, with
-the analytic captured fraction printed beside every empirical number so the prediction is
-falsifiable rather than decorative.
+the population captured fraction printed where the dictionary is admissible. Inadmissible
+polynomial arms are finite-sample stress tests, without a population efficiency prediction.
 
 Pre-specified before any number was produced (see SPEC block below).  Global seed 2026.
 
@@ -60,7 +60,7 @@ from run_three_branch_unification import (
     student_t,
 )
 
-NPROJ = 2_000_000      # MC size for L2 inner products (analytic g)
+NPROJ = 2_000_000      # training size for empirical stress-test coefficients
 NEST = 400             # sample size per replication, estimation branch
 REST = 3000            # replications, estimation branch
 NTEST = 400            # sample size per replication, testing branch
@@ -79,8 +79,8 @@ def fmt_exponents(a):
     return "[" + ", ".join(f"{float(x):.3f}" for x in a) + "]"
 
 
-def g_analytic(fam, alphas, rng, n=NPROJ):
-    """Captured Fisher fraction g = ||proj S||^2 / I on the ODD half B^-(A).
+def g_empirical(fam, alphas, rng, n=NPROJ):
+    """Empirical Gram diagnostic and fitted coefficients, not a population fraction.
 
     The score of a symmetric location family is odd, so E[rho^-_a] = 0 and the centered
     Gram coincides with the raw second-moment matrix (the parity rule of section 2).
@@ -92,6 +92,33 @@ def g_analytic(fam, alphas, rng, n=NPROJ):
     G = (P.T @ P) / len(x)
     b = (P.T @ S) / len(x)
     k = np.linalg.solve(G + 1e-12 * np.eye(len(alphas)), b)
+    return float(b @ k) / fam["I"], k
+
+
+def g_population(fam, alphas, nu=None):
+    """Population Fisher fraction from exact absolute moments and Stein's identity.
+
+    ``nu`` explicitly specifies a Student-t law; otherwise the law must be Laplace.
+    Odd positive powers have b_i = a_i E|X|^(a_i-1). No ridge is used in the
+    population projection. A divergent Gram is rejected before attempting a solve.
+    """
+    from scipy.special import gamma
+
+    a = np.asarray(alphas, dtype=float)
+    if np.any(a <= 0):
+        raise ValueError("The moment/Stein formula requires positive exponents")
+    if nu is not None:
+        if np.any(2 * a >= nu):
+            raise ValueError("Dictionary is not in L2: Student-t requires 2*a < nu")
+        moment = lambda q: t_abs_moment(nu, q)
+    elif fam["name"] == "Laplace":
+        scale = 1 / np.sqrt(2.0)
+        moment = lambda q: scale ** q * gamma(q + 1)
+    else:
+        raise ValueError("Supply nu for a Student-t family")
+    G = np.array([[moment(x + y) for y in a] for x in a])
+    b = np.array([x * moment(x - 1) for x in a])
+    k = np.linalg.solve(G, b)
     return float(b @ k) / fam["I"], k
 
 
@@ -152,11 +179,15 @@ def mle_location(fam, x):
     return float(optimize.minimize_scalar(f, bounds=(-2.0, 2.0), method="bounded").x)
 
 
-def run_estimation(fam, rng):
+def run_estimation(fam, rng, nu=None):
     xtr = fam["samp"](rng, 200_000)
     alphas, ah = admissible_exponents(xtr)
-    g_frac, k_frac = g_analytic(fam, alphas, rng)
-    g_poly, k_poly = g_analytic(fam, [1.0, 3.0], rng)
+    g_frac, k_frac = g_population(fam, alphas, nu)
+    if nu is not None and nu <= 6:
+        g_poly = None
+        _, k_poly = g_empirical(fam, [1.0, 3.0], rng)
+    else:
+        g_poly, k_poly = g_population(fam, [1.0, 3.0], nu)
     Phi_f, _ = frac_basis(alphas)
     Phi_p, _ = frac_basis([1.0, 3.0])
 
@@ -224,10 +255,10 @@ def _hermite_score_coef(fam, rng, order=4, n=400_000):
     return k, float(np.linalg.cond(G))
 
 
-def run_testing(fam, rng):
+def run_testing(fam, rng, nu=None):
     xtr = fam["samp"](rng, 200_000)
     alphas, _ = admissible_exponents(xtr)
-    g_frac, k_frac = g_analytic(fam, alphas, rng)
+    g_frac, k_frac = g_population(fam, alphas, nu)
     Phi_f, _ = frac_basis(alphas)
 
     k_herm, cond_herm = _hermite_score_coef(fam, rng)
@@ -445,7 +476,7 @@ def run_anchor(rng, nu=10.0):
     mc = []
     for s in (0, 1, 2):
         r2 = np.random.default_rng(SEED + 1000 + s)
-        v, _ = g_analytic(fam, [1.0, 3.0], r2, n=4_000_000)
+        v, _ = g_empirical(fam, [1.0, 3.0], r2, n=4_000_000)
         mc.append(v)
     mc = np.array(mc)
 
@@ -485,21 +516,24 @@ def main():
     print( "        is exact and free; we use it and quote no MC error bar for this row.")
 
     print("\n[C-EST] location estimation: RMSE and efficiency vs the oracle MLE")
-    for fam in (laplace(), student_t(3)):
-        r = run_estimation(fam, rng)
+    for fam, nu in ((laplace(), None), (student_t(3), 3)):
+        r = run_estimation(fam, rng, nu)
         print(f"\n  {r['family']}   n={r['n']}, R={r['R']}, Hill alpha_hat={r['hill']:.2f}, "
               f"exponents={fmt_exponents(r['alphas'])}")
-        print(f"  analytic g (fractional) = {r['g_frac']:.4f}   "
-              f"analytic g (poly {{x,x^3}}) = {r['g_poly']:.4f}")
+        gp = f"{r['g_poly']:.4f}" if r['g_poly'] is not None else "N/A (divergent population Gram)"
+        print(f"  population g (fractional, exact moments) = {r['g_frac']:.4f}   "
+              f"population g (poly {{x,x^3}}) = {gp}")
+        if r['g_poly'] is None:
+            print(f"  Polynomial arm: empirical coefficients from {NPROJ:,} independent training draws; stress test only.")
         print(f"     {'estimator':<26}{'RMSE':>10}{'efficiency':>13}")
         for nm in r["rmse"]:
             print(f"     {nm:<26}{r['rmse'][nm]:>10.4f}{r['eff'][nm]:>13.4f}")
 
     print("\n[C-TEST] one-sided location test, size calibrated to 0.05 by simulation")
-    for fam in (laplace(), student_t(3)):
-        r = run_testing(fam, rng)
+    for fam, nu in ((laplace(), None), (student_t(3), 3)):
+        r = run_testing(fam, rng, nu)
         print(f"\n  {r['family']}   n={r['n']}, R={r['R']}, local h={r['h']:.3f}")
-        print(f"  analytic g = {r['g_frac']:.4f}   predicted power "
+        print(f"  population g (exact moments) = {r['g_frac']:.4f}   predicted power "
               f"Phi(sqrt(gI)h - z) = {r['predicted']:.4f}   "
               f"cond(Gram, Hermite) = {r['cond_herm']:.3g}")
         print(f"     {'test':<32}{'power':>9}{'MC SE':>9}{'size':>8}"
@@ -509,7 +543,7 @@ def main():
                 d = r["paired"][nm]
                 tail = f"{d['diff']:>+15.4f} +/- {d['se']:.4f}{d['z']:>7.1f}"
             else:
-                tail = f"{'(reference arm)':>24}{'':>7}"
+                tail = f"{'(reference arm)':>24}"
             print(f"     {nm:<32}{p:>9.4f}{r['power_se'][nm]:>9.4f}"
                   f"{r['size'][nm]:>8.3f}{tail}")
 

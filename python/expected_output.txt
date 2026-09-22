@@ -35,15 +35,15 @@ KUNCHENKO LIKELIHOOD-SERIES UNIFICATION
 
 [T4 — GSA reading: J(s)/‖z‖² (InfoFunctional) vs captured c(m), same sample]
      family                  m      c(m)    J/‖z‖²        |Δ|
-     Gaussian cov-shift      2  0.000001  0.000001   6.23e-17
-     Gaussian cov-shift      3  1.000000  1.000000   6.44e-15
-     Gaussian cov-shift      4  1.000000  1.000000   2.89e-15
-     Gaussian cov-shift      6  1.000000  1.000000   1.07e-14
-     Laplace shift           2  0.707335  0.707335   2.74e-14
-     Laplace shift           3  0.707337  0.707337   2.79e-14
-     Laplace shift           4  0.857140  0.857140   2.50e-14
-     Laplace shift           6  0.940816  0.940816   2.92e-14
-     T4 (max|c−J|=2.92e-14<1e-6 ∧ Gaussian J saturates at m=3: 1.000000) PASS
+     Gaussian cov-shift      2  0.000001  0.000001   6.24e-17
+     Gaussian cov-shift      3  1.000000  1.000000   1.55e-15
+     Gaussian cov-shift      4  1.000000  1.000000   1.55e-15
+     Gaussian cov-shift      6  1.000000  1.000000   1.55e-15
+     Laplace shift           2  0.707335  0.707335   1.21e-13
+     Laplace shift           3  0.707337  0.707337   1.09e-13
+     Laplace shift           4  0.857140  0.857140   1.11e-13
+     Laplace shift           6  0.940816  0.940816   1.19e-13
+     T4 (max|c−J|=1.21e-13<1e-6 ∧ Gaussian J saturates at m=3: 1.000000) PASS
 
 [D1 — decomposition: R²=κ_m(log p), captured fraction of the log-density itself]
   Gaussian R²(m=2 [1,x]) = 0.000000   R²(m=3 [1,x,x²]) = 1.000000  (terminates at x²)

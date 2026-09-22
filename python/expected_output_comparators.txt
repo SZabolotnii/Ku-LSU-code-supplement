@@ -5,7 +5,7 @@ COMPARATOR STUDY -- Ku-LSU, Statistical Papers revision.  seed = 2026
 [C-ANCH] exact analytic control: Student-t(10), odd dictionary {x, sgn(x)|x|^3}
    classical Kunchenko g_3 = Var(PMM_3)/Var(PMM_1) = 24/25 = 0.960000  (EXACT)
    captured fraction kappa_3 = kappa_1/g_3 = 65/66      = 0.984848  (EXACT)   [kappa_1 = 52/55 = 0.945455]
-   analytic Gram route:  kappa_3 = 0.984848   |err| = 1.11e-16   cond(F) = 106   PASS
+   analytic Gram route:  kappa_3 = 0.984848   |err| = 0.00e+00   cond(F) = 106   PASS
    recovered classical   g_3     = 0.960000
    Monte-Carlo Gram route (3 seeds, n=4e6): 0.98438 +/- 0.00100   error -0.00046
       ^ agrees to ~1e-3, but the MC estimator of the Gram entry E[x^6] on t(10)
@@ -16,69 +16,70 @@ COMPARATOR STUDY -- Ku-LSU, Statistical Papers revision.  seed = 2026
 [C-EST] location estimation: RMSE and efficiency vs the oracle MLE
 
   Laplace   n=400, R=3000, Hill alpha_hat=3.11, exponents=[0.544, 0.987, 1.429]
-  analytic g (fractional) = 0.9609   analytic g (poly {x,x^3}) = 0.5842
+  population g (fractional, exact moments) = 0.9609   population g (poly {x,x^3}) = 0.5833
      estimator                       RMSE   efficiency
-     mean                          0.0494       0.5498
-     median                        0.0365       1.0026
-     Huber(1.345)                  0.0421       0.7569
-     poly PMM {x,x^3}              0.0457       0.6424
-     frac PMM                      0.0367       0.9951
-     MLE (oracle)                  0.0366       1.0000
+     mean                          0.0489       0.5528
+     median                        0.0364       1.0005
+     Huber(1.345)                  0.0416       0.7644
+     poly PMM {x,x^3}              0.0453       0.6440
+     frac PMM                      0.0365       0.9933
+     MLE (oracle)                  0.0364       1.0000
 
-  Student-t(df=3)   n=400, R=3000, Hill alpha_hat=2.46, exponents=[0.430, 0.781, 1.132]
-  analytic g (fractional) = 0.9544   analytic g (poly {x,x^3}) = 0.5271
+  Student-t(df=3)   n=400, R=3000, Hill alpha_hat=2.47, exponents=[0.432, 0.784, 1.136]
+  population g (fractional, exact moments) = 0.9537   population g (poly {x,x^3}) = N/A (divergent population Gram)
+  Polynomial arm: empirical coefficients from 2,000,000 independent training draws; stress test only.
      estimator                       RMSE   efficiency
-     mean                          0.0856       0.4749
-     median                        0.0656       0.8079
-     Huber(1.345)                  0.0611       0.9338
-     poly PMM {x,x^3}              0.0839       0.4939
-     frac PMM                      0.0604       0.9532
-     MLE (oracle)                  0.0590       1.0000
+     mean                          0.0869       0.4950
+     median                        0.0688       0.7893
+     Huber(1.345)                  0.0627       0.9512
+     poly PMM {x,x^3}              0.0863       0.5017
+     frac PMM                      0.0631       0.9391
+     MLE (oracle)                  0.0611       1.0000
 
 [C-TEST] one-sided location test, size calibrated to 0.05 by simulation
 
   Laplace   n=400, R=4000, local h=0.350
-  analytic g = 0.9620   predicted power Phi(sqrt(gI)h - z) = 0.1232   cond(Gram, Hermite) = 2.44e+03
+  population g (exact moments) = 0.9621   predicted power Phi(sqrt(gI)h - z) = 0.1232   cond(Gram, Hermite) = 2.11e+03
      test                                power    MC SE    size    ours - this (paired)      z
-     t-test                             0.0953   0.0046   0.050        +0.0425 +/- 0.0055    7.8
-     sign                               0.1273   0.0053   0.044        +0.0105 +/- 0.0029    3.6
-     Wilcoxon                           0.1160   0.0051   0.050        +0.0217 +/- 0.0044    5.0
-     Neyman smooth (omnibus chi2)       0.0585   0.0037   0.050        +0.0793 +/- 0.0063   12.6
-     projected score (Hermite)          0.1037   0.0048   0.050        +0.0340 +/- 0.0052    6.5
-     projected score (fractional)       0.1378   0.0054   0.050         (reference arm)       
+     t-test                             0.0980   0.0047   0.050        +0.0272 +/- 0.0052    5.3
+     sign                               0.1182   0.0051   0.048        +0.0070 +/- 0.0028    2.5
+     Wilcoxon                           0.1140   0.0050   0.050        +0.0112 +/- 0.0043    2.6
+     Neyman smooth (omnibus chi2)       0.0485   0.0034   0.050        +0.0767 +/- 0.0060   12.8
+     projected score (Hermite)          0.0988   0.0047   0.050        +0.0265 +/- 0.0051    5.2
+     projected score (fractional)       0.1253   0.0052   0.050         (reference arm)
 
   Student-t(df=3)   n=400, R=4000, local h=0.350
-  analytic g = 0.9548   predicted power Phi(sqrt(gI)h - z) = 0.0860   cond(Gram, Hermite) = 1.43e+09
+  population g (exact moments) = 0.9535   predicted power Phi(sqrt(gI)h - z) = 0.0860   cond(Gram, Hermite) = 4.46e+08
      test                                power    MC SE    size    ours - this (paired)      z
-     t-test                             0.0747   0.0042   0.050        +0.0057 +/- 0.0043    1.3
-     sign                               0.0828   0.0044   0.049        -0.0022 +/- 0.0031   -0.7
-     Wilcoxon                           0.0775   0.0042   0.050        +0.0030 +/- 0.0026    1.1
-     Neyman smooth (omnibus chi2)       0.0503   0.0035   0.050        +0.0302 +/- 0.0052    5.9
-     projected score (Hermite)          0.0772   0.0042   0.050        +0.0032 +/- 0.0043    0.8
-     projected score (fractional)       0.0805   0.0043   0.050         (reference arm)       
+     t-test                             0.0712   0.0041   0.050        +0.0170 +/- 0.0042    4.0
+     sign                               0.0755   0.0042   0.047        +0.0127 +/- 0.0029    4.4
+     Wilcoxon                           0.0858   0.0044   0.050        +0.0025 +/- 0.0029    0.9
+     Neyman smooth (omnibus chi2)       0.0503   0.0035   0.050        +0.0380 +/- 0.0053    7.1
+     projected score (Hermite)          0.0717   0.0041   0.050        +0.0165 +/- 0.0042    3.9
+     projected score (fractional)       0.0882   0.0045   0.050         (reference arm)
 
 [C-CLS] two-class discrimination, held out
 
   Gaussian covariance shift  N(0,1) vs N(0,2.25)  [order-2 projection EXACT]
-     n/class=20000, Hill alpha_hat=4.02, exponents=[0.703, 1.276, 1.849]
+     n/class=20000, Hill alpha_hat=4.08, exponents=[0.715, 1.296, 1.878]
      rule                                  AUC    error     cond(F)
-     QDA                                    0.6272   0.4013          --
-     logistic (fractional design)           0.6272   0.4022          --
-     KDE plug-in                            0.6267   0.4006          --
-     projected Lambda (fractional)          0.6272   0.4020    7.15e+03
-     projected Lambda (polynomial)          0.6272   0.4024         147
-     projected Lambda (frac, KDE target)    0.5968   0.4163    7.15e+03
-     true Lambda (oracle)                   0.6272   0.4024          --
+     QDA                                    0.6233   0.4048          --
+     logistic (fractional design)           0.6231   0.4047          --
+     KDE plug-in                            0.6224   0.4049          --
+     projected Lambda (fractional)          0.6233   0.4047    7.11e+03
+     projected Lambda (polynomial)          0.6233   0.4048         145
+     projected Lambda (frac, KDE target)    0.6217   0.4073    7.11e+03
+     true Lambda (oracle)                   0.6233   0.4048          --
 
   Student-t3 scale shift  t3 vs 1.5*t3  [heavy tail, not exact]
-     n/class=20000, Hill alpha_hat=2.37, exponents=[0.415, 0.753, 1.091]
+     n/class=20000, Hill alpha_hat=2.39, exponents=[0.418, 0.758, 1.099]
      rule                                  AUC    error     cond(F)
-     QDA                                    0.6092   0.4344          --
-     logistic (fractional design)           0.6088   0.4177          --
-     KDE plug-in                            0.6065   0.4181          --
-     projected Lambda (fractional)          0.6086   0.4175    7.49e+03
-     projected Lambda (polynomial)          0.5978   0.4295    9.28e+05
-     projected Lambda (frac, KDE target)    0.4960   0.4926    7.49e+03
-     true Lambda (oracle)                   0.6091   0.4177          --
+     QDA                                    0.6075   0.4320          --
+     logistic (fractional design)           0.6073   0.4165          --
+     KDE plug-in                            0.6057   0.4171          --
+     projected Lambda (fractional)          0.6076   0.4166    7.71e+03
+     projected Lambda (polynomial)          0.6000   0.4299    7.62e+05
+     projected Lambda (frac, KDE target)    0.4571   0.5433    7.71e+03
+     true Lambda (oracle)                   0.6076   0.4160          --
 
 ==============================================================================

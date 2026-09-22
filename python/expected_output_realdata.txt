@@ -1,86 +1,66 @@
 ==============================================================================
-REAL-DATA STUDY -- Ku-LSU, Statistical Papers revision.  seed = 2026
-pre-registration: review/REAL_DATA_SPEC_2026-09-16.md
-==============================================================================
+REAL-DATA STUDY -- corrected protocol 2026-09-21; seed = 2026
+Specification: REAL_DATA_SPEC.md (post-analysis correction recorded)
+DEXJPUS: 13901 returns; TRAIN 8340 / TEST 5561
+DEXUSUK: 13907 returns; TRAIN 8344 / TEST 5563
+DEXCAUS: 13909 returns; TRAIN 8345 / TEST 5564
+DEXUSEU: 6886 returns; TRAIN 4131 / TEST 2755
+TOTAL 48603; TRAIN 29160 / TEST 19443; blocks 231 / 154
+Per-series chronological split; not a global forward-forecasting split.
+Cross-currency TRAIN/TEST calendar overlap remains; results are descriptive.
+AUC intervals: paired 63-calendar-day clusters, 2000 replicates; conditional diagnostics.
+R-0: TRAIN Hill 2.804; heuristic ceiling 1.402; A=[0.491, 0.890, 1.290]
+Shift delta=0.000847; a Hill estimate does not prove moment existence.
 
-sources  : DEXJPUS, DEXUSUK, DEXCAUS, DEXUSEU   (fred-heavytail; SP500 and DCOILWTICO excluded by pre-registration)
-           DEXJPUS     13901 returns   train   8340  test   5561
-           DEXUSUK     13907 returns   train   8344  test   5563
-           DEXCAUS     13909 returns   train   8345  test   5564
-           DEXUSEU      6886 returns   train   4131  test   2755
-pooled   : 48603 daily log-returns; TRAIN 29160 / TEST 19443 (60/40 by date)
-blocks   : n=125; TRAIN 231 blocks / TEST 154 blocks
+[E] descriptive block estimates relative to TRAIN centering
+  sample mean                  RMS 0.000514; ratio to minimum 1.000
+  median                       RMS 0.000531; ratio to minimum 1.034
+  Huber(1.345)                 RMS 0.000519; ratio to minimum 1.010
+  polynomial PMM {x,x^3}       RMS 0.000556; ratio to minimum 1.082
+  fractional PMM               RMS 0.000702; ratio to minimum 1.368
+  cond(F): fractional 1.13e+03, polynomial 9.9e+03, raw fractional 1e+05
+  E-1/E-2: NOT IDENTIFIED as parameter-risk claims; descriptive RMS only.
 
-[R-0] admissibility gate: Hill alpha_hat (TRAIN) = 2.805
-      alpha_hat < 4  -> PROCEED.  exponent ceiling = 1.403, A = [0.491, 0.891, 1.290]
-      shift delta = 0.25 * MAD(train) = 0.000847
+[T] descriptive rejection rates; no iid z-test or WIN/TIE inference
+  t-test                           baseline 0.0325; shifted 0.5714; TEST-recalibrated 0.6753
+  sign                             baseline 0.0195; shifted 0.4935; TEST-recalibrated 0.6234
+  Wilcoxon                         baseline 0.0390; shifted 0.5714; TEST-recalibrated 0.6558
+  projected score (Hermite)        baseline 0.0455; shifted 0.5065; TEST-recalibrated 0.5390
+  projected score (fractional)     baseline 0.0260; shifted 0.4416; TEST-recalibrated 0.6234
+  T-1: no inferential verdict; TEST-recalibration is secondary and not held-out calibration.
 
-[E] estimation on real noise with a known injected shift
-    blocks of n=125: 154
-    estimator                         RMSE   RMSE/best
-    sample mean                   0.000514       1.001
-    median                        0.000522       1.017
-    Huber(1.345)                  0.000513       1.000
-    polynomial PMM {x,x^3}        0.000518       1.011
-    fractional PMM                0.000537       1.048
-    E-1 fractional <= polynomial (paired MSE diff +2.013e-08, 95% CI [-3.808e-08, +7.881e-08]):  FAIL
-    E-2 fractional within 5% of best RMSE:  PASS
-    cond(F): fractional 1.13e+03, polynomial 9.91e+03 (bases applied to x / 3.387e-03, the TRAIN robust scale)
-             fractional on RAW returns, no scale: 1.01e+05 -- why the standardization is applied
+[C-loc] centered-label regression (not log-ratio projection)
+  label regression (fractional)      AUC 0.5397
+  label regression (polynomial)      AUC 0.5495
+  paired AUC gap -0.0098; block CI [-0.0123, -0.0075]
+  C-1 descriptive superiority criterion: not met
 
-[T] testing: critical values from TRAIN, size and power on TEST
-    blocks: 154
-    test                                size    power      paired vs ours      z
-    t-test                             0.013   0.5260      -0.0455 +/-0.0395   -1.2
-    sign                               0.013   0.4545      +0.0260 +/-0.0205    1.3
-    Wilcoxon                           0.019   0.5065      -0.0260 +/-0.0332   -0.8
-    projected score (Hermite)          0.013   0.4935      -0.0130 +/-0.0368   -0.4
-    projected score (fractional)       0.013   0.4805         (reference)       
-    T-1 (PRIMARY, pre-registered: critical values from TRAIN)
-        vs best classical arm (t-test): z = -1.15 -> TIE
-    SECONDARY (Amendment 2: critical values recalibrated on TEST null blocks,
-               so every arm has size 0.05 where the power is measured)
-        test                                power      paired vs ours      z
-        t-test                             0.6429      +0.0195 +/-0.0350    0.6
-        sign                               0.6234      +0.0390 +/-0.0223    1.7
-        Wilcoxon                           0.6623      +0.0000 +/-0.0319    0.0
-        projected score (Hermite)          0.6234      +0.0390 +/-0.0343    1.1
-        projected score (fractional)       0.6623         (reference)       
-        vs best classical arm (Wilcoxon): z = +0.00 -> TIE  (secondary; does NOT replace the primary verdict)
+[C-scale] within-series trailing windows; immutable split after filtering
+  Each exponent set A generates an intercept and BOTH signed/absolute powers.
+  TRAIN 19384 / TEST 9416; TEST class-1 share 0.710
+  A={1}          cols 3; R2 fit 0.2048; R2 validation 0.0529; AUC 0.6919; gap-to-best CI [+0.0000, +0.0005]
+  A={1,3}        cols 5; R2 fit 0.2390; R2 validation 0.0641; AUC 0.6912; gap-to-best CI [+0.0002, +0.0021]
+  A={low}        cols 3; R2 fit 0.2587; R2 validation 0.0958; AUC 0.6922; gap-to-best CI (best arm)
+  A={mid}        cols 3; R2 fit 0.2191; R2 validation 0.0630; AUC 0.6920; gap-to-best CI [+0.0000, +0.0004]
+  A={high}       cols 3; R2 fit 0.1596; R2 validation 0.0215; AUC 0.6918; gap-to-best CI [+0.0001, +0.0007]
+  frac triple    cols 7; R2 fit 0.2776; R2 validation 0.1007; AUC 0.6908; gap-to-best CI [+0.0002, +0.0032]
+  Spearman(validation label R2,AUC) -0.200; in-sample -0.200
+  AUC spread 0.0014; 5/5 unadjusted intervals above zero.
+  C-2: NOT TESTED as a claim about kappa(Lambda); label R2 is a different target.
+  Best arm is selected on TEST; intervals are exploratory, not selection-adjusted.
 
-[C-loc] classification, heavy tail is a SHARED nuisance (favourable regime)
-    projected Lambda (fractional)     AUC 0.5401
-    projected Lambda (polynomial)     AUC 0.5495
-    C-1 fractional >= polynomial (diff -0.0094, 95% CI [-0.0139, -0.0045]):  FAIL
-
-[C-scale] classification, heavy tail IS the contrast (adverse regime)
-    labels from a DISJOINT trailing 21-day realized-volatility window;
-    TRAIN 17292 / TEST 11529, class-1 share on TEST 0.740
-    dictionary      cols  kappa in-samp  kappa HELD-OUT  AUC (TEST)        95% CI vs best
-    {x}                3         0.1681          0.1266      0.6920     [-0.0000,+0.0006]
-    {x, x^3}           5         0.2030          0.1283      0.6915     [+0.0002,+0.0013]
-    |x|^a low          3         0.2443          0.0907      0.6922            (best arm)
-    |x|^a mid          3         0.1842          0.1259      0.6920     [-0.0000,+0.0005]
-    |x|^a high         3         0.1225          0.1148      0.6918     [-0.0000,+0.0008]
-    frac triple        7         0.2767          0.0229      0.6912     [+0.0004,+0.0017]
-    Spearman(kappa HELD-OUT, AUC) = +0.029   [in-sample kappa would give -0.200]
-    AUC spread across all 6 dictionaries = 0.0010; 2 of 5 arms separable from the best
-    C-2 pre-registered prediction 'non-positive':  REFUTED
-
-[A3] DIAGNOSTIC (exploratory, not pre-registered): block-devolatilized returns
-     each block divided by its own MAD before any basis is applied
-     Hill alpha_hat after devolatilization = 2.643 (was 2.805)   A = [0.462, 0.839, 1.216]
-     estimator                         RMSE   RMSE/best
-     sample mean                   0.100070       1.049
-     median                        0.105183       1.102
-     Huber(1.345)                  0.098456       1.032
-     polynomial PMM {x,x^3}        0.100059       1.048
-     fractional PMM                0.095437       1.000
-     E-1' fractional <= polynomial (paired MSE diff -9.036e-04, 95% CI [-1.655e-03, -1.780e-04]):  PASS
-     E-2' fractional within 5% of best:  PASS
-     projected Lambda (fractional)     AUC 0.5681
-     projected Lambda (polynomial)     AUC 0.5669
-     C-1' fractional >= polynomial (diff +0.0012, 95% CI [-0.0004, +0.0029]):  FAIL
-     A-3 prediction (edge recovers on at least one of E-1', C-1'): SUPPORTED
-
+[A3] exploratory block-scale diagnostic; reuses the observed TEST period
+  TRAIN Hill 2.647; A=[0.463, 0.841, 1.218]
+  sample mean                  RMS 0.101151; ratio to minimum 1.007
+  median                       RMS 0.107444; ratio to minimum 1.070
+  Huber(1.345)                 RMS 0.100445; ratio to minimum 1.000
+  polynomial PMM {x,x^3}       RMS 0.101140; ratio to minimum 1.007
+  fractional PMM               RMS 0.102838; ratio to minimum 1.024
+  cond(F): fractional 573, polynomial 2.31e+08, raw fractional 574
+  E-1/E-2: NOT IDENTIFIED as parameter-risk claims; descriptive RMS only.
+  label regression (fractional)      AUC 0.5683
+  label regression (polynomial)      AUC 0.5669
+  paired AUC gap +0.0014; block CI [-0.0001, +0.0028]
+  C-1 descriptive superiority criterion: not met
+  No parameter-risk advantage or general devolatilization recommendation established.
 ==============================================================================

@@ -2,12 +2,12 @@
 run_realdata.py -- the real-data study for the Statistical Papers revision (Reviewer 1).
 
 Design, criteria and abort conditions were fixed in review/REAL_DATA_SPEC_2026-09-16.md
-BEFORE this file was written.  Nothing here may move a threshold; every arm reports
-whatever it produced.
+before initial analysis. Corrections made after that analysis are documented in
+REAL_DATA_SPEC.md; they are not pre-registered decisions.
 
 Data: FRED DEXJPUS (yen per US dollar, daily, from 1971), from the dataset lake.
 Split 60/40 by date: TRAIN fixes exponents, coefficients and critical values; TEST
-carries every reported metric.
+carries evaluation metrics; training diagnostics are reported separately.
 
 The study contains one favourable sub-case (heavy tail as a SHARED nuisance) and one
 adverse sub-case (heavy tail IS the class contrast) with a pre-registered prediction
@@ -75,9 +75,54 @@ def load_returns(path):
     raw = np.genfromtxt(path, delimiter=",", names=True, dtype=None, encoding="utf8")
     px = np.asarray(raw[raw.dtype.names[1]], dtype=float)
     ok = np.isfinite(px) & (px > 0)
+    dates = np.asarray(raw[raw.dtype.names[0]], dtype='datetime64[D]')[ok]
     px = px[ok]
     r = np.diff(np.log(px))
-    return r[np.isfinite(r)]
+    return dates[1:][np.isfinite(r)], r[np.isfinite(r)]
+
+
+def prepare_series(name, dates, returns):
+    """Freeze the original split before any centering, rolling window or filtering."""
+    train = np.arange(len(returns)) < int(TRAIN_FRAC * len(returns))
+    center = float(np.median(returns[train]))
+    r = np.asarray(returns) - center
+    rv = np.full(len(r), np.nan)
+    for i in range(VOL_WINDOW, len(r)):
+        rv[i] = np.std(r[i - VOL_WINDOW:i])
+    fit = np.arange(len(r)) < int(0.7 * np.sum(train))
+    return dict(name=name, dates=dates, r=r, train=train, fit=fit, rv=rv, center=center)
+
+
+def scale_samples(series):
+    """Apply TRAIN terciles without changing original series-wise split membership."""
+    rv_train = np.concatenate([s['rv'][s['train'] & np.isfinite(s['rv'])] for s in series])
+    thresholds = np.quantile(rv_train, [1 / 3, 2 / 3])
+    parts = {k: [] for k in ('xtr', 'ytr', 'xte', 'yte', 'dates_tr', 'dates_te', 'fit')}
+    for s in series:
+        lab = np.where(s['rv'] >= thresholds[1], 1, np.where(s['rv'] <= thresholds[0], 0, -1))
+        for suffix, mask in [('tr', s['train']), ('te', ~s['train'])]:
+            keep = mask & (lab >= 0)
+            parts['x' + suffix].append(s['r'][keep])
+            parts['y' + suffix].append(lab[keep].astype(float))
+            parts['dates_' + suffix].append(s['dates'][keep])
+            if suffix == 'tr':
+                parts['fit'].append(s['fit'][keep])
+    return {**{k: np.concatenate(v) for k, v in parts.items()}, 'thresholds': thresholds}
+
+
+def calendar_boot_indices(dates, rng, block_days=63):
+    """Resample nonoverlapping 63-calendar-day clusters, jointly across currencies.
+
+    Synthetic copies retain the same date and hence the same multiplicity. These are
+    conditional, exploratory intervals; stationarity and block-length adequacy are not
+    established by this exercise.
+    """
+    groups = (dates.astype('datetime64[D]').astype(np.int64) // block_days)
+    _, inv = np.unique(groups, return_inverse=True)
+    order = np.argsort(inv, kind='stable')
+    cuts = np.r_[0, np.cumsum(np.bincount(inv))]
+    draw = rng.integers(0, len(cuts) - 1, len(cuts) - 1)
+    return np.concatenate([order[cuts[j]:cuts[j + 1]] for j in draw])
 
 
 def blocks_of(x, n=NBLOCK):
@@ -91,65 +136,55 @@ def fmt_exponents(a):
     return "[" + ", ".join(f"{float(x):.3f}" for x in a) + "]"
 
 
-def paired_boot(d, rng, nboot=NBOOT):
-    """Bootstrap CI for the mean of a paired difference vector."""
-    idx = rng.integers(0, len(d), size=(nboot, len(d)))
-    m = d[idx].mean(axis=1)
-    return float(d.mean()), float(np.quantile(m, 0.025)), float(np.quantile(m, 0.975))
-
-
-# --------------------------------------------------------------------------- #
 def branch_estimation(tr, Bte, alphas, delta, rng):
-    """Amendment 2.  Each series' TEST segment was centred once by its OWN grand median
-    (one constant from ~5000 observations), so the true location of every block is 0 up to
-    O(1/sqrt(5000)) -- negligible against a block's own O(1/sqrt(125)).  Each estimator is
-    applied to each block and its error is the estimate itself.  No arm is privileged: the
-    centring constant uses 40x more data than any block, so a block median is not exact.
-
-    (Amendment 1's paired difference est(b+delta)-est(b) is withdrawn: it equals delta
-    identically for any location-equivariant estimator and measures nothing.)"""
+    """Descriptive RMS about the TRAIN median, not risk about a known block location."""
     sc = robust_scale(tr)
     Phi_f, _ = frac_basis(alphas)
     Phi_p, _ = frac_basis([1.0, 3.0])
     k_f, cond_f = fit_score_coefs(tr, alphas, sc)
     k_p, cond_p = fit_score_coefs(tr, [1.0, 3.0], sc)
-
-    # cond(F) of the same fractional design applied to RAW returns, i.e. without the TRAIN
-    # robust scale.  The Gram depends on the design alone, so this is the unscaled twin of
-    # cond_f.  Printed so that the numerical-hygiene claim in `robust_scale`, which the
-    # manuscript quotes, is reproduced rather than asserted.
     P_raw = Phi_f(tr)
-    cond_f_raw = float(np.linalg.cond((P_raw.T @ P_raw) / len(tr)))
-
+    cond_raw = float(np.linalg.cond((P_raw.T @ P_raw) / len(tr)))
     arms = {
         "sample mean": lambda b: float(b.mean()),
         "median": lambda b: float(np.median(b)),
         "Huber(1.345)": lambda b: huber_location(b),
         "polynomial PMM {x,x^3}":
-            lambda b: sc * _psi_root(b / sc, Phi_p, k_p, lo=-4 * delta / sc, hi=4 * delta / sc),
+            lambda b: sc * _psi_root(b / sc, Phi_p, k_p, lo=-4*delta/sc, hi=4*delta/sc),
         "fractional PMM":
-            lambda b: sc * _psi_root(b / sc, Phi_f, k_f, lo=-4 * delta / sc, hi=4 * delta / sc),
+            lambda b: sc * _psi_root(b / sc, Phi_f, k_f, lo=-4*delta/sc, hi=4*delta/sc),
     }
-    err = {nm: np.array([f(b) for b in Bte]) for nm, f in arms.items()}
-    rmse = {nm: float(np.sqrt(np.mean(e ** 2))) for nm, e in err.items()}
-
-    d = err["fractional PMM"] ** 2 - err["polynomial PMM {x,x^3}"] ** 2
-    m, lo, hi = paired_boot(d, rng)
-    e1 = (rmse["fractional PMM"] <= rmse["polynomial PMM {x,x^3}"]) and (hi < 0)
-    best = min(rmse.values())
-    e2 = rmse["fractional PMM"] <= 1.05 * best
-    return dict(rmse=rmse, nblocks=len(Bte), delta=delta,
-                e1=e1, e1_stat=(m, lo, hi), e2=e2, best=best,
-                cond_frac=cond_f, cond_poly=cond_p, cond_frac_raw=cond_f_raw, scale=sc)
+    estimates = {name: np.array([f(b) for b in Bte]) for name, f in arms.items()}
+    rms = {name: float(np.sqrt(np.mean(v**2))) for name, v in estimates.items()}
+    return dict(rms=rms, best=min(rms.values()), nblocks=len(Bte),
+                cond_frac=cond_f, cond_poly=cond_p, cond_frac_raw=cond_raw, scale=sc)
 
 
 def robust_scale(x):
-    """TRAIN-estimated robust scale.  The fractional basis is NOT scale-equivariant across
-    different exponents: on raw FX returns (order 1e-3) the columns |x|^0.49 and |x|^1.29
-    differ by ~300x in magnitude and cond(F) = 1.0e5, against 1.1e3 after standardizing.
-    Every basis in this file is therefore applied to x / scale, with `scale` fixed on TRAIN.
-    This is numerical hygiene applied identically to every arm; it changes no criterion."""
+    """TRAIN-estimated robust scale used for every arm's numerical conditioning.
+
+    Scaling x rescales power columns differently. It preserves their unregularized
+    span, but can greatly change the empirical Gram's condition number. Regularized
+    numerical fits need not be exactly invariant to such a column rescaling.
+    """
     return float(stats.median_abs_deviation(x, scale="normal"))
+
+
+def kernel_score(z, n_sub=4000):
+    """Nonparametric score proxy psi_hat = -(d/dz) log f_hat from a Gaussian kernel fit.
+
+    Bandwidth: Silverman's rule of thumb with the ROBUST spread min(sd, IQR/1.349) in place of
+    the sample sd (Correction 6 in REAL_DATA_SPEC.md).  scipy's default Scott factor multiplies
+    the sample sd, which on a heavy-tailed sample is set by the largest observations; on a
+    synthetic t_1.5 control the resulting proxy gave projection coefficients unrelated to the
+    true score (RMSE 0.0759 against 0.0681 with the exact score; the robust rule gives 0.0702).
+    """
+    zs = z[:: max(1, len(z) // n_sub)]
+    spread = min(float(np.std(zs)), float(stats.iqr(zs) / 1.349))
+    factor = 0.9 * spread * len(zs) ** (-1 / 5) / max(float(np.std(zs)), 1e-12)
+    kde = stats.gaussian_kde(zs, bw_method=factor)
+    h = 1e-3 * spread
+    return -(np.log(kde(z + h) + 1e-300) - np.log(kde(z - h) + 1e-300)) / (2 * h)
 
 
 def fit_score_coefs(x, alphas, scale=None):
@@ -160,9 +195,7 @@ def fit_score_coefs(x, alphas, scale=None):
     sc = robust_scale(x) if scale is None else scale
     z = x / sc
     Phi, _ = frac_basis(alphas)
-    kde = stats.gaussian_kde(z[:: max(1, len(z) // 4000)])
-    h = 1e-3 * np.std(z)
-    psi = -(np.log(kde(z + h) + 1e-300) - np.log(kde(z - h) + 1e-300)) / (2 * h)
+    psi = kernel_score(z)
     P = Phi(z)
     F = (P.T @ P) / len(z)
     b = (P.T @ psi) / len(z)
@@ -205,21 +238,6 @@ def branch_testing(tr, Btr, Bte, alphas, delta, rng):
     size = {nm: float(np.mean(rej0[nm])) for nm in names}
     power = {nm: float(np.mean(rej1[nm])) for nm in names}
 
-    ours = "projected score (fractional)"
-    r_ours = np.array(rej1[ours])
-    paired = {}
-    for nm in names:
-        if nm == ours:
-            continue
-        d = r_ours - np.array(rej1[nm])
-        se = float(d.std(ddof=1) / np.sqrt(len(d)))
-        paired[nm] = (float(d.mean()), se, float(d.mean() / se) if se > 0 else 0.0)
-
-    classical = [nm for nm in names if nm not in (ours, "projected score (Hermite)")]
-    best_cl = max(classical, key=lambda nm: power[nm])
-    z = paired[best_cl][2]
-    verdict = "WIN" if z >= 2 else ("LOSS" if z <= -2 else "TIE")
-
     # SECONDARY (Amendment 2): recalibrate on TEST null blocks, so every arm has size 0.05
     # on the data the power is measured on.  Reported beside the primary, never instead.
     s_te = {nm: [] for nm in names}
@@ -234,30 +252,13 @@ def branch_testing(tr, Btr, Bte, alphas, delta, rng):
         for nm in names:
             rej1b[nm].append(float(v1[nm] > crit2[nm]))
     power2 = {nm: float(np.mean(rej1b[nm])) for nm in names}
-    r2_ours = np.array(rej1b[ours])
-    paired2 = {}
-    for nm in names:
-        if nm == ours:
-            continue
-        d = r2_ours - np.array(rej1b[nm])
-        se = float(d.std(ddof=1) / np.sqrt(len(d)))
-        paired2[nm] = (float(d.mean()), se, float(d.mean() / se) if se > 0 else 0.0)
-    best_cl2 = max(classical, key=lambda nm: power2[nm])
-    z2 = paired2[best_cl2][2]
-    verdict2 = "WIN" if z2 >= 2 else ("LOSS" if z2 <= -2 else "TIE")
-
-    return dict(size=size, power=power, paired=paired, nblocks=len(Bte),
-                best_classical=best_cl, z=z, verdict=verdict,
-                power2=power2, paired2=paired2, best_classical2=best_cl2,
-                z2=z2, verdict2=verdict2)
+    return dict(size=size, power=power, power2=power2, nblocks=len(Bte))
 
 
 def fit_hermite_coefs(x, order=4, scale=None):
     sc = robust_scale(x) if scale is None else scale
     z = x / sc
-    kde = stats.gaussian_kde(z[:: max(1, len(z) // 4000)])
-    h = 1e-3 * np.std(z)
-    psi = -(np.log(kde(z + h) + 1e-300) - np.log(kde(z - h) + 1e-300)) / (2 * h)
+    psi = kernel_score(z)
     H = _hermite_cols(z, order)
     G = (H.T @ H) / len(z)
     b = (H.T @ psi) / len(z)
@@ -266,7 +267,7 @@ def fit_hermite_coefs(x, order=4, scale=None):
 
 
 # --------------------------------------------------------------------------- #
-def branch_cls_location(tr, te, alphas, delta, rng):
+def branch_cls_location(tr, te, alphas, delta, rng, dates_te):
     """C-loc: the heavy tail is a SHARED nuisance; only location differs."""
     x0tr, x1tr = tr, tr + delta
     x0te, x1te = te, te + delta
@@ -278,84 +279,72 @@ def branch_cls_location(tr, te, alphas, delta, rng):
     sc = robust_scale(tr)
     out = {}
     for nm, (Dtr, Dte) in {
-        "projected Lambda (fractional)":
+        "label regression (fractional)":
             (_design_frac(xtr / sc, alphas), _design_frac(xte / sc, alphas)),
-        "projected Lambda (polynomial)":
+        "label regression (polynomial)":
             (_design_poly(xtr / sc, 3), _design_poly(xte / sc, 3)),
     }.items():
         coef, *_ = np.linalg.lstsq(Dtr, ytr - 0.5, rcond=None)
         out[nm] = Dte @ coef
     auc = {nm: _auc(s, yte) for nm, s in out.items()}
 
-    # paired bootstrap over TEST observations
+    # Paired calendar-block bootstrap keeps currencies and synthetic copies together.
     n = len(yte)
+    dates = np.concatenate([dates_te, dates_te])
     diffs = np.empty(NBOOT)
     for i in range(NBOOT):
-        idx = rng.integers(0, n, n)
-        diffs[i] = (_auc(out["projected Lambda (fractional)"][idx], yte[idx])
-                    - _auc(out["projected Lambda (polynomial)"][idx], yte[idx]))
+        idx = calendar_boot_indices(dates, rng)
+        diffs[i] = (_auc(out["label regression (fractional)"][idx], yte[idx])
+                    - _auc(out["label regression (polynomial)"][idx], yte[idx]))
     lo, hi = float(np.quantile(diffs, 0.025)), float(np.quantile(diffs, 0.975))
-    c1 = (auc["projected Lambda (fractional)"] >= auc["projected Lambda (polynomial)"]) and (lo > 0)
-    return dict(auc=auc, diff=float(diffs.mean()), ci=(lo, hi), c1=c1, n_test=n)
+    gap = auc["label regression (fractional)"] - auc["label regression (polynomial)"]
+    c1 = (gap >= 0) and (lo > 0)
+    return dict(auc=auc, diff=gap, ci=(lo, hi), c1=c1, n_test=n)
 
 
-def branch_cls_scale(r, alphas, rng, train_frac=TRAIN_FRAC):
+def branch_cls_scale(series, alphas, rng):
     """C-scale: the heavy tail IS the contrast.  Adverse pre-registered prediction C-2."""
-    rv = np.array([np.std(r[max(0, i - VOL_WINDOW):i]) if i >= VOL_WINDOW else np.nan
-                   for i in range(len(r))])
-    ok = np.isfinite(rv)
-    r, rv = r[ok], rv[ok]
-    ntr = int(train_frac * len(r))
-    lo_q, hi_q = np.quantile(rv[:ntr], [1 / 3, 2 / 3])
-    lab = np.where(rv >= hi_q, 1, np.where(rv <= lo_q, 0, -1))
-    keep = lab >= 0
-    r, lab = r[keep], lab[keep]
-    ntr = int(train_frac * len(r))
-    xtr, ytr = r[:ntr], lab[:ntr].astype(float)
-    xte, yte = r[ntr:], lab[ntr:].astype(float)
+    samples = scale_samples(series)
+    xtr, ytr, xte, yte = [samples[k] for k in ('xtr', 'ytr', 'xte', 'yte')]
 
     ceil = max(alphas)
     dicts = {
-        "{x}": [1.0],
-        "{x, x^3}": [1.0, 3.0],
-        "|x|^a low": [0.4 * ceil],
-        "|x|^a mid": [0.7 * ceil],
-        "|x|^a high": [ceil],
+        "A={1}": [1.0],
+        "A={1,3}": [1.0, 3.0],
+        "A={low}": [0.4 * ceil],
+        "A={mid}": [0.7 * ceil],
+        "A={high}": [ceil],
         "frac triple": list(alphas),
     }
     sc = float(stats.median_abs_deviation(xtr, scale="normal"))
 
-    # CORRECTION 2026-09-16.  The first version of this branch scored each dictionary by an
-    # IN-SAMPLE R^2 on the training data.  That is not the selector the paper proposes
-    # (check S1 of the controlled study uses a HELD-OUT captured fraction), and it rewards
-    # whichever dictionary has the most columns, so it cannot test a selection rule.  The
-    # captured fraction is now computed out of sample: coefficients are fitted on the first
-    # 70% of TRAIN and kappa is evaluated on the remaining 30%, which no fit has seen.
-    # Both values are reported so the difference is visible.
-    nfit = int(0.7 * len(xtr))
+    # Validation R-squared predicts centered labels, not an unknown log-ratio.
+    # Dictionary exponents and regime labels use all TRAIN, so this inner holdout
+    # is conditional on those choices, not a nested validation of the entire selector.
+    fit = samples['fit']
     rows, scores = {}, {}
     for nm, A in dicts.items():
-        Dfit = _design_frac(xtr[:nfit] / sc, A)
-        Dhold = _design_frac(xtr[nfit:] / sc, A)
-        t_fit = ytr[:nfit] - ytr[:nfit].mean()
-        t_hold = ytr[nfit:] - ytr[nfit:].mean()
+        Dfit = _design_frac(xtr[fit] / sc, A)
+        Dhold = _design_frac(xtr[~fit] / sc, A)
+        t_fit = ytr[fit] - ytr[fit].mean()
+        t_hold = ytr[~fit] - ytr[fit].mean()
         coef, *_ = np.linalg.lstsq(Dfit, t_fit, rcond=None)
         kap_in = float(np.sum((Dfit @ coef) ** 2) / np.sum(t_fit ** 2))
         resid = t_hold - Dhold @ coef
-        kap_out = float(1.0 - np.sum(resid ** 2) / np.sum(t_hold ** 2))
+        kap_out = float(1.0 - np.sum(resid ** 2) / np.sum((ytr[~fit] - ytr[~fit].mean()) ** 2))
         # test scores use coefficients refitted on the whole of TRAIN
         coef_full, *_ = np.linalg.lstsq(_design_frac(xtr / sc, A), ytr - ytr.mean(), rcond=None)
         sco = _design_frac(xte / sc, A) @ coef_full
         scores[nm] = sco
-        rows[nm] = dict(kappa_in=kap_in, kappa_out=kap_out, auc_test=_auc(sco, yte),
+        rows[nm] = dict(r2_in=kap_in, r2_validation=kap_out, auc_test=_auc(sco, yte),
                         ncol=Dfit.shape[1])
 
     names = list(dicts)
-    ki = np.array([rows[n]["kappa_in"] for n in names])
-    ko = np.array([rows[n]["kappa_out"] for n in names])
+    ki = np.array([rows[n]["r2_in"] for n in names])
+    ko = np.array([rows[n]["r2_validation"] for n in names])
     au = np.array([rows[n]["auc_test"] for n in names])
     rho_in = float(stats.spearmanr(ki, au).statistic)
-    rho = float(stats.spearmanr(ko, au).statistic)      # the selector the paper proposes
+    rho = float(stats.spearmanr(ko, au).statistic)
 
     # Is there a ranking to recover at all?  Paired bootstrap of the AUC gap to the best arm.
     best = max(names, key=lambda k: rows[k]["auc_test"])
@@ -367,7 +356,7 @@ def branch_cls_scale(r, alphas, rng, train_frac=TRAIN_FRAC):
             continue
         d = np.empty(NBOOT)
         for i in range(NBOOT):
-            idx = rng.integers(0, n, n)
+            idx = calendar_boot_indices(samples['dates_te'], rng)
             d[i] = _auc(scores[best][idx], yte[idx]) - _auc(scores[nm][idx], yte[idx])
         lo2, hi2 = float(np.quantile(d, 0.025)), float(np.quantile(d, 0.975))
         rows[nm]["ci"] = (lo2, hi2)
@@ -382,148 +371,83 @@ def branch_cls_scale(r, alphas, rng, train_frac=TRAIN_FRAC):
 # --------------------------------------------------------------------------- #
 def main():
     rng = np.random.default_rng(SEED)
-    paths = resolve_data()
-    tr_parts, te_parts, btr, bte, per = [], [], [], [], []
-    for nm, p in paths:
-        ri = load_returns(p)
-        k = int(TRAIN_FRAC * len(ri))            # split each series by ITS OWN date range
-        te_i = ri[k:] - np.median(ri[k:])      # Amendment 2: one constant per series
-        tr_parts.append(ri[:k]); te_parts.append(te_i)
-        btr.append(blocks_of(ri[:k])); bte.append(blocks_of(te_i))
-        per.append((nm, len(ri), len(ri[:k]), len(ri[k:])))
-    tr = np.concatenate(tr_parts); te = np.concatenate(te_parts)
-    Btr = np.concatenate(btr, axis=0); Bte = np.concatenate(bte, axis=0)
-    r = np.concatenate([np.concatenate(tr_parts), np.concatenate(te_parts)])
-
+    series, train_blocks, test_blocks, test_block_dates = [], [], [], []
+    for name, path in resolve_data():
+        dates, returns = load_returns(path)
+        s = prepare_series(name, dates, returns)
+        series.append(s)
+        train_blocks.append(blocks_of(s["r"][s["train"]]))
+        test = s["r"][~s["train"]]
+        test_blocks.append(blocks_of(test))
+        test_block_dates.append(dates[~s["train"]][:len(blocks_of(test))*NBLOCK])
+    tr = np.concatenate([s["r"][s["train"]] for s in series])
+    te = np.concatenate([s["r"][~s["train"]] for s in series])
+    dates_te = np.concatenate([s["dates"][~s["train"]] for s in series])
+    Btr, Bte = np.concatenate(train_blocks), np.concatenate(test_blocks)
     print("=" * 78)
-    print("REAL-DATA STUDY -- Ku-LSU, Statistical Papers revision.  seed =", SEED)
-    print("pre-registration: review/REAL_DATA_SPEC_2026-09-16.md")
-    print("=" * 78)
-    print("\nsources  : " + ", ".join(n for n, _ in paths) +
-          "   (fred-heavytail; SP500 and DCOILWTICO excluded by pre-registration)")
-    for nm, n_all, n_tr, n_te in per:
-        print(f"           {nm:<10} {n_all:>6} returns   train {n_tr:>6}  test {n_te:>6}")
-    print(f"pooled   : {len(r)} daily log-returns; TRAIN {len(tr)} / TEST {len(te)} (60/40 by date)")
-    print(f"blocks   : n={NBLOCK}; TRAIN {len(Btr)} blocks / TEST {len(Bte)} blocks")
-
+    print("REAL-DATA STUDY -- corrected protocol 2026-09-21; seed =", SEED)
+    print("Specification: REAL_DATA_SPEC.md (post-analysis correction recorded)")
+    for s in series:
+        print(f"{s['name']}: {len(s['r'])} returns; TRAIN {s['train'].sum()} / TEST {(~s['train']).sum()}")
+    print(f"TOTAL {len(tr)+len(te)}; TRAIN {len(tr)} / TEST {len(te)}; blocks {len(Btr)} / {len(Bte)}")
+    print("Per-series chronological split; not a global forward-forecasting split.")
+    print("Cross-currency TRAIN/TEST calendar overlap remains; results are descriptive.")
+    print("AUC intervals: paired 63-calendar-day clusters, 2000 replicates; conditional diagnostics.")
     ah = hill_alpha(tr)
-    print(f"\n[R-0] admissibility gate: Hill alpha_hat (TRAIN) = {ah:.3f}")
-    if ah >= 4.0:
-        print("      alpha_hat >= 4 -> the paper's heavy-tail regime does NOT apply.")
-        print("      STUDY DECLARED UNINFORMATIVE (pre-registered abort).  No further arms run.")
+    ceil = ah / 2
+    alphas = list(np.linspace(0.35*ceil, 0.92*ceil, 3))
+    print(f"R-0: TRAIN Hill {ah:.3f}; heuristic ceiling {ceil:.3f}; A={fmt_exponents(alphas)}")
+    if ah >= 4:
+        print("Study uninformative under the specified Hill gate.")
         return
-    ceil = ah / 2.0
-    alphas = list(np.linspace(0.35 * ceil, 0.92 * ceil, 3))
-    print(f"      alpha_hat < 4  -> PROCEED.  exponent ceiling = {ceil:.3f}, "
-          f"A = {fmt_exponents(alphas)}")
+    delta = 0.25 * robust_scale(tr)
+    print(f"Shift delta={delta:.6f}; a Hill estimate does not prove moment existence.")
 
-    delta = 0.25 * float(stats.median_abs_deviation(tr, scale='normal'))
-    print(f"      shift delta = 0.25 * MAD(train) = {delta:.6f}")
+    def print_estimation(e):
+        for name, value in e["rms"].items():
+            print(f"  {name:<28} RMS {value:.6f}; ratio to minimum {value/e['best']:.3f}")
+        print(f"  cond(F): fractional {e['cond_frac']:.3g}, polynomial {e['cond_poly']:.3g}, raw fractional {e['cond_frac_raw']:.3g}")
+        print("  E-1/E-2: NOT IDENTIFIED as parameter-risk claims; descriptive RMS only.")
 
-    print("\n[E] estimation on real noise with a known injected shift")
-    e = branch_estimation(tr, Bte, alphas, delta, rng)
-    print(f"    blocks of n={NBLOCK}: {e['nblocks']}")
-    print(f"    {'estimator':<26}{'RMSE':>12}{'RMSE/best':>12}")
-    for nm, v in e["rmse"].items():
-        print(f"    {nm:<26}{v:>12.6f}{v/e['best']:>12.3f}")
-    m, lo, hi = e["e1_stat"]
-    print(f"    E-1 fractional <= polynomial (paired MSE diff {m:+.3e}, "
-          f"95% CI [{lo:+.3e}, {hi:+.3e}]):  {'PASS' if e['e1'] else 'FAIL'}")
-    print(f"    E-2 fractional within 5% of best RMSE:  {'PASS' if e['e2'] else 'FAIL'}")
-    print(f"    cond(F): fractional {e['cond_frac']:.3g}, polynomial {e['cond_poly']:.3g} "
-          f"(bases applied to x / {e['scale']:.3e}, the TRAIN robust scale)")
-    print(f"             fractional on RAW returns, no scale: {e['cond_frac_raw']:.3g} "
-          f"-- why the standardization is applied")
-
-    print("\n[T] testing: critical values from TRAIN, size and power on TEST")
+    print("\n[E] descriptive block estimates relative to TRAIN centering")
+    print_estimation(branch_estimation(tr, Bte, alphas, delta, rng))
+    print("\n[T] descriptive rejection rates; no iid z-test or WIN/TIE inference")
     t = branch_testing(tr, Btr, Bte, alphas, delta, rng)
-    print(f"    blocks: {t['nblocks']}")
-    print(f"    {'test':<32}{'size':>8}{'power':>9}{'paired vs ours':>20}{'z':>7}")
-    for nm in t["power"]:
-        if nm in t["paired"]:
-            d, se, z = t["paired"][nm]
-            tail = f"{d:>+13.4f} +/-{se:.4f}{z:>7.1f}"
-        else:
-            tail = f"{'(reference)':>20}{'':>7}"
-        print(f"    {nm:<32}{t['size'][nm]:>8.3f}{t['power'][nm]:>9.4f}{tail}")
-    print(f"    T-1 (PRIMARY, pre-registered: critical values from TRAIN)")
-    print(f"        vs best classical arm ({t['best_classical']}): z = {t['z']:+.2f} "
-          f"-> {t['verdict']}")
-    print(f"    SECONDARY (Amendment 2: critical values recalibrated on TEST null blocks,")
-    print(f"               so every arm has size 0.05 where the power is measured)")
-    print(f"        {'test':<32}{'power':>9}{'paired vs ours':>20}{'z':>7}")
-    for nm in t["power2"]:
-        if nm in t["paired2"]:
-            d, se, z = t["paired2"][nm]
-            tail = f"{d:>+13.4f} +/-{se:.4f}{z:>7.1f}"
-        else:
-            tail = f"{'(reference)':>20}{'':>7}"
-        print(f"        {nm:<32}{t['power2'][nm]:>9.4f}{tail}")
-    print(f"        vs best classical arm ({t['best_classical2']}): z = {t['z2']:+.2f} "
-          f"-> {t['verdict2']}  (secondary; does NOT replace the primary verdict)")
+    for name in t["power"]:
+        print(f"  {name:<32} baseline {t['size'][name]:.4f}; shifted {t['power'][name]:.4f}; TEST-recalibrated {t['power2'][name]:.4f}")
+    print("  T-1: no inferential verdict; TEST-recalibration is secondary and not held-out calibration.")
 
-    print("\n[C-loc] classification, heavy tail is a SHARED nuisance (favourable regime)")
-    cl = branch_cls_location(tr, te, alphas, delta, rng)
-    for nm, v in cl["auc"].items():
-        print(f"    {nm:<34}AUC {v:.4f}")
-    print(f"    C-1 fractional >= polynomial (diff {cl['diff']:+.4f}, "
-          f"95% CI [{cl['ci'][0]:+.4f}, {cl['ci'][1]:+.4f}]):  "
-          f"{'PASS' if cl['c1'] else 'FAIL'}")
+    def print_location(result):
+        for name, value in result["auc"].items():
+            print(f"  {name:<34} AUC {value:.4f}")
+        print(f"  paired AUC gap {result['diff']:+.4f}; block CI [{result['ci'][0]:+.4f}, {result['ci'][1]:+.4f}]")
+        print(f"  C-1 descriptive superiority criterion: {'met' if result['c1'] else 'not met'}")
 
-    print("\n[C-scale] classification, heavy tail IS the contrast (adverse regime)")
-    cs = branch_cls_scale(r, alphas, rng)
-    print(f"    labels from a DISJOINT trailing {VOL_WINDOW}-day realized-volatility window;")
-    print(f"    TRAIN {cs['n_train']} / TEST {cs['n_test']}, class-1 share on TEST "
-          f"{cs['frac_class1']:.3f}")
-    print(f"    {'dictionary':<14}{'cols':>6}{'kappa in-samp':>15}{'kappa HELD-OUT':>16}"
-          f"{'AUC (TEST)':>12}{'95% CI vs best':>22}")
-    for nm, v in cs["rows"].items():
-        ci = "  (best arm)" if v["ci"] is None else f"[{v['ci'][0]:+.4f},{v['ci'][1]:+.4f}]"
-        print(f"    {nm:<14}{v['ncol']:>6}{v['kappa_in']:>15.4f}{v['kappa_out']:>16.4f}"
-              f"{v['auc_test']:>12.4f}{ci:>22}")
-    print(f"    Spearman(kappa HELD-OUT, AUC) = {cs['spearman']:+.3f}   "
-          f"[in-sample kappa would give {cs['spearman_in']:+.3f}]")
-    print(f"    AUC spread across all {cs['n_arms']} dictionaries = {cs['spread']:.4f}; "
-          f"{cs['n_distinguishable']} of {cs['n_arms']-1} arms separable from the best")
-    print(f"    C-2 pre-registered prediction 'non-positive':  "
-          f"{'CONFIRMED' if cs['c2'] else 'REFUTED'}")
+    print("\n[C-loc] centered-label regression (not log-ratio projection)")
+    print_location(branch_cls_location(tr, te, alphas, delta, rng, dates_te))
+    print("\n[C-scale] within-series trailing windows; immutable split after filtering")
+    print("  Each exponent set A generates an intercept and BOTH signed/absolute powers.")
+    cs = branch_cls_scale(series, alphas, rng)
+    print(f"  TRAIN {cs['n_train']} / TEST {cs['n_test']}; TEST class-1 share {cs['frac_class1']:.3f}")
+    for name, row in cs["rows"].items():
+        ci = "(best arm)" if row["ci"] is None else f"[{row['ci'][0]:+.4f}, {row['ci'][1]:+.4f}]"
+        print(f"  {name:<14} cols {row['ncol']}; R2 fit {row['r2_in']:.4f}; R2 validation {row['r2_validation']:.4f}; AUC {row['auc_test']:.4f}; gap-to-best CI {ci}")
+    print(f"  Spearman(validation label R2,AUC) {cs['spearman']:+.3f}; in-sample {cs['spearman_in']:+.3f}")
+    print(f"  AUC spread {cs['spread']:.4f}; {cs['n_distinguishable']}/{cs['n_arms']-1} unadjusted intervals above zero.")
+    print("  C-2: NOT TESTED as a claim about kappa(Lambda); label R2 is a different target.")
+    print("  Best arm is selected on TEST; intervals are exploratory, not selection-adjusted.")
 
-    # ------------------------------------------------------------------ #
-    # Amendment 3 (EXPLORATORY, written after the primary outcomes were seen):
-    # is volatility clustering the cause?  Devolatilize each block by its OWN
-    # robust scale and repeat E and C-loc.
-    # ------------------------------------------------------------------ #
-    print("\n[A3] DIAGNOSTIC (exploratory, not pre-registered): block-devolatilized returns")
-    print("     each block divided by its own MAD before any basis is applied")
-    Bd = Bte / np.maximum(stats.median_abs_deviation(Bte, axis=1, scale="normal",
-                                                     keepdims=True), 1e-12)
-    trd = np.concatenate([bb / max(float(stats.median_abs_deviation(bb, scale="normal")), 1e-12)
-                          for bb in Btr])
+    print("\n[A3] exploratory block-scale diagnostic; reuses the observed TEST period")
+    Bd = Bte / np.maximum(stats.median_abs_deviation(Bte, axis=1, scale="normal", keepdims=True), 1e-12)
+    trd = np.concatenate([b/max(float(stats.median_abs_deviation(b, scale="normal")), 1e-12) for b in Btr])
     ahd = hill_alpha(trd)
-    ceild = ahd / 2.0
-    Ad = list(np.linspace(0.35 * ceild, 0.92 * ceild, 3))
-    deld = 0.25 * float(stats.median_abs_deviation(trd, scale="normal"))
-    print(f"     Hill alpha_hat after devolatilization = {ahd:.3f} "
-          f"(was {ah:.3f})   A = {fmt_exponents(Ad)}")
-    ed = branch_estimation(trd, Bd, Ad, deld, rng)
-    print(f"     {'estimator':<26}{'RMSE':>12}{'RMSE/best':>12}")
-    for nm, v in ed["rmse"].items():
-        print(f"     {nm:<26}{v:>12.6f}{v/ed['best']:>12.3f}")
-    m2, lo2, hi2 = ed["e1_stat"]
-    print(f"     E-1' fractional <= polynomial (paired MSE diff {m2:+.3e}, "
-          f"95% CI [{lo2:+.3e}, {hi2:+.3e}]):  {'PASS' if ed['e1'] else 'FAIL'}")
-    print(f"     E-2' fractional within 5% of best:  {'PASS' if ed['e2'] else 'FAIL'}")
-
-    cld = branch_cls_location(trd, np.concatenate(list(Bd)), Ad, deld, rng)
-    for nm, v in cld["auc"].items():
-        print(f"     {nm:<34}AUC {v:.4f}")
-    print(f"     C-1' fractional >= polynomial (diff {cld['diff']:+.4f}, "
-          f"95% CI [{cld['ci'][0]:+.4f}, {cld['ci'][1]:+.4f}]):  "
-          f"{'PASS' if cld['c1'] else 'FAIL'}")
-    verdict = "SUPPORTED" if (ed["e1"] or cld["c1"]) else "NOT SUPPORTED"
-    print(f"     A-3 prediction (edge recovers on at least one of E-1', C-1'): {verdict}")
-
-    print("\n" + "=" * 78)
+    Ad = list(np.linspace(0.35*ahd/2, 0.92*ahd/2, 3))
+    deld = 0.25*robust_scale(trd)
+    print(f"  TRAIN Hill {ahd:.3f}; A={fmt_exponents(Ad)}")
+    print_estimation(branch_estimation(trd, Bd, Ad, deld, rng))
+    print_location(branch_cls_location(trd, Bd.ravel(), Ad, deld, rng, np.concatenate(test_block_dates)))
+    print("  No parameter-risk advantage or general devolatilization recommendation established.")
+    print("=" * 78)
 
 
 if __name__ == "__main__":

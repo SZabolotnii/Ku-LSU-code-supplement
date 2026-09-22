@@ -1,0 +1,11 @@
+==============================================================================
+Reference efficiencies of the robust arms against the t_nu MLE (closed form)
+nu = 1.855 is the law fitted on TRAIN in Study 2; 3.3 and 3.56 bracket the
+per-epoch median Hill estimates (TEST 3.29, TRAIN 3.56).
+==============================================================================
+nu = 1.855  median 0.835  Huber(1.345, MAD scale) 0.834  Wilcoxon 0.846
+nu = 3.0    median 0.811  Huber(1.345, MAD scale) 0.945  Wilcoxon 0.950
+nu = 3.3    median 0.803  Huber(1.345, MAD scale) 0.958  Wilcoxon 0.962
+nu = 3.56   median 0.797  Huber(1.345, MAD scale) 0.967  Wilcoxon 0.971
+nu = 5.0    median 0.769  Huber(1.345, MAD scale) 0.990  Wilcoxon 0.993
+==============================================================================

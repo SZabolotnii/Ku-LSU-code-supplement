@@ -15,19 +15,27 @@ Federal Reserve Bank of St. Louis — `DEXJPUS`, `DEXUSUK`, `DEXCAUS`, `DEXUSEU`
 | Part | What it certifies | How |
 |---|---|---|
 | `python/run_three_branch_unification.py` | §5–§6: the fifteen checks — A1–A2, T1–T4, A3, D1, H1, L1 (unification) plus U1, P1, P2, S1, C1 (uncertainty, power/ROC, RMSE, data-driven selection, completeness) | `numpy` Monte-Carlo, seed 2026 |
-| `python/run_comparators.py` | §7: the three branches beside polynomial, Hermite, robust and nonparametric alternatives, paired, with `cond(F)` on every basis solve | `numpy`/`scipy`, seed 2026 |
-| `python/run_realdata.py` | §8: the pre-registered study on the four FRED series, split 60/40 by date with every reported number held out | `numpy`/`scipy`, seed 2026, reads `data/` |
+| `python/run_comparators.py` | §7: three branches beside polynomial, Hermite, robust and nonparametric alternatives; population fractions from exact moments where admissible, with conditioning diagnostics for testing/classification | `numpy`/`scipy`, seed 2026 |
+| `python/run_realdata.py` | §8.1: amended FRED study with immutable per-series chronological splits, training diagnostics and separately reported test outcomes | `numpy`/`scipy`, seed 2026, reads `data/` |
+| `python/run_realdata_study2.py` | §8.2: Study 2 on EEGdenoiseNet muscular-artefact epochs (second-moment-failure regime), known shift by pairing, block-MAD scale, seven estimation arms, five tests, label regression, and the kappa prediction under a fitted t law | `numpy`/`scipy`, seed 2026, reads `data/`; ~8 min |
 | `lean/`   | The Gaussian-anchor detection identities (Thm. *Detection bridge* + the GSA corollary) | Lean 4 / Mathlib v4.26.0, 0 `sorry` |
 
-The pre-registration of the real-data study, written before any analysis code existed, is
-`REAL_DATA_SPEC.md`; its two amendments, its one post-hoc diagnostic and the correction to the first
-analysis of criterion C-2 are recorded inside it. The paper cites this repository as the record of
-that document and of the program output (`python/expected_output*.txt`), which each script
-reproduces byte-for-byte.
+The pre-registration of the real-data studies, written before any analysis code existed, is
+`REAL_DATA_SPEC.md`; its amendments, its one post-hoc diagnostic, the correction to the first
+analysis of criterion C-2, the outcome-blind data-selection rule and lake-wide screen of Study 2,
+and Correction 6 (the kernel-score bandwidth, found on a synthetic control before the Study 2 run)
+are recorded inside it. The paper cites this repository as the record of that document and of the
+program output (`python/expected_output*.txt`), which each script reproduces up to
+platform-dependent floating-point rounding.
 
-This state is archived as release v1.1.0: [doi:10.5281/zenodo.22860597](https://doi.org/10.5281/zenodo.22860597).
-The concept DOI [10.5281/zenodo.22860596](https://doi.org/10.5281/zenodo.22860596) always resolves to the
-latest version.
+Release v1.2.0 (2026-09-22) is the state the revised manuscript reports: it adds the corrected
+real-data protocol (immutable per-series splits, dependence-aware uncertainty,
+population-efficiency reporting), Study 2 with its data file and pre-registration, Correction 6,
+the reference-efficiency script and the regression tests. The earlier state is archived as
+release v1.1.0: [doi:10.5281/zenodo.22860597](https://doi.org/10.5281/zenodo.22860597); it
+predates all of these. The concept DOI
+[10.5281/zenodo.22860596](https://doi.org/10.5281/zenodo.22860596) always resolves to the latest
+version; the version DOI of v1.2.0 is recorded in `CITATION.cff` once Zenodo has minted it.
 
 ## Quick start
 
@@ -37,9 +45,10 @@ latest version.
 python3 -m pip install -r requirements.txt
 python3 python/run_three_branch_unification.py        # prints "UNIFICATION VERIFICATION : PASS (15 checks)"
 
-# 2. Comparators (§7) and the pre-registered real-data study (§8)
+# 2. Comparators (§7) and the two pre-registered real-data studies (§8)
 python3 python/run_comparators.py                      # ~10 min
 python3 python/run_realdata.py                         # ~30 s, reads data/
+python3 python/run_realdata_study2.py                  # ~8 min, reads data/EMG_all_epochs.npy
 
 # 3. Figures (recomputed from the gate; nothing hardcoded)
 python3 python/make_figures.py                         # writes figs/*.{png,pdf}
@@ -48,10 +57,13 @@ python3 python/make_figures.py                         # writes figs/*.{png,pdf}
 cd lean && lake exe cache get && lake build            # "Build completed successfully", 0 sorry
 ```
 
-A `Makefile` wraps these: `make gate`, `make comparators`, `make realdata`, `make figures`,
-`make lean`, `make all`. Each of the three scripts reproduces its recorded output byte-for-byte:
-`python/expected_output.txt`, `python/expected_output_comparators.txt` and
-`python/expected_output_realdata.txt`.
+A `Makefile` wraps these: `make gate`, `make comparators`, `make realdata`, `make realdata2`,
+`make figures`, `make lean`, `make all`. Recorded outputs for the four scripts are:
+`python/expected_output.txt`, `python/expected_output_comparators.txt`,
+`python/expected_output_realdata.txt` and `python/expected_output_realdata_study2.txt`.
+`make refeff` (`python/reference_efficiencies.py`, no data) prints the closed-form asymptotic
+efficiencies of the median, Huber and Wilcoxon arms against the Student-t MLE that Section 8.2
+quotes; its recorded output is `python/expected_output_reference_efficiencies.txt`.
 
 ## What to expect
 

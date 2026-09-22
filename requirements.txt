@@ -1,8 +1,10 @@
-# Python dependencies for the Paper 4 verification gate + figures.
+# Python dependencies for the Paper 4 verification gate, comparators, real-data studies + figures.
 # Verified environment (the numbers quoted in the paper reproduce here, seed 2026):
-#   Python 3.13 / 3.14, numpy 2.4.4, matplotlib 3.10.9
-# The gate uses only numpy; figures additionally use matplotlib. scipy is NOT required.
+#   Python 3.13 / 3.14, numpy 2.4.x, scipy 1.17, matplotlib 3.10.9
+# The gate uses only numpy; the comparator and real-data scripts also use scipy
+# (optimisation, Student-t fit, quadrature, Wilcoxon); figures use matplotlib.
 # Monte-Carlo quantities are checked against tolerances, so trailing digits may differ
 # across BLAS builds while every PASS criterion remains robust.
 numpy>=2.0,<3
+scipy>=1.12,<2
 matplotlib>=3.8,<4

@@ -1,0 +1,55 @@
+==============================================================================
+REAL-DATA STUDY 2 -- pre-registered 2026-09-22; seed = 2026
+Specification: REAL_DATA_SPEC.md, section 'Study 2'
+EMG epochs 5598 x 256 pair differences; TRAIN 3358 / TEST 2240 epochs
+TRAIN sign balance P(d>0) = 0.5016; within-block lag-1 acf of d = -0.107
+R-0: TRAIN Hill (pooled standardised) 1.362; per-block median 3.556; ceiling 0.681; A=[0.238, 0.432, 0.626]
+Tail diagnostic: TEST pooled standardised Hill 1.539; per-block median 3.290
+E-3 diagnostic: TRAIN mean(d^6) first half 1.12e+08, second half 3.89e+08, ratio 3.48
+Fitted Student-t on TRAIN: df 1.855, scale 0.783
+
+[E] block RMSE about the known shift delta=0.25 (primary); 2240 TEST blocks
+  sample mean                          RMSE 0.1678; ratio to fractional 2.425; RMSE minus fractional CI [+0.0830, +0.1148]
+  median                               RMSE 0.0702; ratio to fractional 1.014; RMSE minus fractional CI [-0.0015, +0.0034]
+  Huber(1.345)                         RMSE 0.0581; ratio to fractional 0.839; RMSE minus fractional CI [-0.0135, -0.0090]
+  Student-t MLE (df,scale from TRAIN)  RMSE 0.0645; ratio to fractional 0.931; RMSE minus fractional CI [-0.0075, -0.0022]
+  polynomial PMM {x,x^3}               RMSE 0.1531; ratio to fractional 2.213; RMSE minus fractional CI [+0.0706, +0.0976]
+  Hermite-projected score              RMSE 0.1649; ratio to fractional 2.382; RMSE minus fractional CI [+0.0800, +0.1113]
+  fractional PMM                       RMSE 0.0692; ratio to fractional 1.000
+  cond(F): fractional 2.1e+03, polynomial 2.67e+07, Hermite 1.18e+08
+  E-1 (fractional < polynomial, paired CI excl. 0): PASS
+  E-2 (fractional <= 1.10 x best robust arm 0.0581): FAIL
+  E-3 ratio mean-RMSE / fractional-RMSE: 2.42
+
+[E] block RMSE about the known shift delta=1.0 (secondary); 2240 TEST blocks
+  sample mean                          RMSE 0.1678; ratio to fractional 2.425; RMSE minus fractional CI [+0.0827, +0.1151]
+  median                               RMSE 0.0702; ratio to fractional 1.014; RMSE minus fractional CI [-0.0015, +0.0035]
+  Huber(1.345)                         RMSE 0.0581; ratio to fractional 0.839; RMSE minus fractional CI [-0.0135, -0.0090]
+  Student-t MLE (df,scale from TRAIN)  RMSE 0.0645; ratio to fractional 0.931; RMSE minus fractional CI [-0.0075, -0.0022]
+  polynomial PMM {x,x^3}               RMSE 0.1531; ratio to fractional 2.213; RMSE minus fractional CI [+0.0701, +0.0979]
+  Hermite-projected score              RMSE 0.1649; ratio to fractional 2.382; RMSE minus fractional CI [+0.0801, +0.1112]
+  fractional PMM                       RMSE 0.0692; ratio to fractional 1.000
+  cond(F): fractional 2.1e+03, polynomial 2.67e+07, Hermite 1.18e+08
+  E-1 (fractional < polynomial, paired CI excl. 0): PASS
+  E-2 (fractional <= 1.10 x best robust arm 0.0581): FAIL
+  E-3 ratio mean-RMSE / fractional-RMSE: 2.42
+
+[T] size 0.05 calibrated on TRAIN blocks; H1 shift delta=0.25
+  t-test                           TEST size 0.0647; power 0.8549
+  sign                             TEST size 0.0473; power 0.9737
+  Wilcoxon                         TEST size 0.0527; power 0.9960
+  projected score (Hermite)        TEST size 0.0647; power 0.8576
+  projected score (fractional)     TEST size 0.0469; power 0.9848
+  T-1: fractional minus best classical (Wilcoxon) = -0.0112, paired SE 0.0025, z = -4.51: LOSS
+
+[C-loc] centered-label regression, shift delta=0.25; paired epoch bootstrap
+  label regression (fractional)      AUC 0.5645
+  label regression (polynomial)      AUC 0.5639
+  paired AUC gap +0.0007; epoch CI [+0.0006, +0.0007]
+  C-1 (fractional >= polynomial, CI excl. 0): PASS
+
+[kappa] prediction under the fitted t law vs realisation at delta=0.25 (numbers, not a criterion)
+  kappa(fractional) 0.9096; kappa(sign) 0.8354; predicted efficiency ratio fractional/median 1.089
+  realised TEST RMSE^2(median)/RMSE^2(fractional) 1.029; gap (realised - predicted) -0.060
+  The fitted law is a proxy for an unknown score and blocks are dependent; the gap is reported, not tested.
+==============================================================================
